@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import "./game.css";
 
 const Game = () => {
-    return (
-        <div>
-            <h1>Game page</h1>
-        </div>
-    );
+  
+  return (
+    <div>
+        <h1>Game page</h1>
+    </div>
+  );
 };
 
 export default Game;
