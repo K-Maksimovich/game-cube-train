@@ -3,14 +3,17 @@ import "./testgame.css";
 
 const TestGame = () => {
   const [cubePosition, setCubePosition] = useState('top'); // Позиция кубика: top или bottom
+  const [cubeAngle, setCubeAngle] = useState(0); // Угол вращения кубика вокруг круга
+  const [cubeRadius, setCubeRadius] = useState(150); // Радиус вращения кубика
   const [obstacles, setObstacles] = useState([]); // Массив препятствий
   const [isGameOver, setIsGameOver] = useState(false); // Состояние игры
   const [score, setScore] = useState(0); // Счёт
   const [isFlipping, setIsFlipping] = useState(false); // Анимация кувырка
+  const [isCircleMode, setIsCircleMode] = useState(false); // Режим круга
 
   // Обработка прыжка (изменение позиции кубика и активация кувырка)
   const handleJump = () => {
-    if (isGameOver) return;
+    if (isGameOver || isCircleMode) return; // В круговом режиме прыжок не нужен
 
     setIsFlipping(true);
     setCubePosition(prevPosition => (prevPosition === 'top' ? 'bottom' : 'top'));
@@ -26,7 +29,25 @@ const TestGame = () => {
     return () => {
       window.removeEventListener('click', handleScreenClick);
     };
-  }, [isGameOver]);
+  }, [isGameOver, isCircleMode]);
+
+  // Логика трансформации в круг при достижении 1000 очков
+  useEffect(() => {
+    if (score >= 1000 && !isCircleMode) {
+      setIsCircleMode(true); // Переход в круговой режим
+    }
+  }, [score]);
+
+  // Вращение кубика вокруг круга в круговом режиме
+  useEffect(() => {
+    if (!isCircleMode) return;
+
+    const cubeRotationInterval = setInterval(() => {
+      setCubeAngle(prevAngle => (prevAngle + 3) % 360); // Вращение кубика по кругу
+    }, 30); // Скорость вращения
+
+    return () => clearInterval(cubeRotationInterval);
+  }, [isCircleMode]);
 
   // Обновление позиции препятствий
   useEffect(() => {
@@ -50,7 +71,7 @@ const TestGame = () => {
 
         // Проверка на столкновение
         const collision = newObstacles.some(
-          obstacle => obstacle.position < 60 && obstacle.position > 0 && obstacle.type === cubePosition
+            obstacle => obstacle.position < 60 && obstacle.position > 0 && obstacle.type === cubePosition
         );
 
         if (collision) {
@@ -62,28 +83,15 @@ const TestGame = () => {
 
         return newObstacles.filter(obstacle => obstacle.position > 0); // Удаляем препятствия, которые вышли за экран
       });
-    }, 100); // Увеличиваем частоту обновления для динамики
+    }, 100); // Частота обновления
 
     return () => clearInterval(obstacleInterval);
   }, [cubePosition, isGameOver]);
 
   // Рендеринг
   return (
-    <div className="game-container">
-      <div className="line"></div>
-      <div
-        className={`cube ${cubePosition} ${isFlipping ? 'flipping' : ''}`}
-      ></div>
-      {obstacles.map(obstacle => (
-        <div
-          key={obstacle.id}
-          className={`obstacle ${obstacle.type}`}
-          style={{ left: `${obstacle.position}px` }}
-        ></div>
-      ))}
-      <div className="score">Score: {score}</div>
-      {isGameOver && <div className="game-over">Game Over</div>}
-    </div>
+      <div className="game-container">
+      </div>
   );
 };
 
