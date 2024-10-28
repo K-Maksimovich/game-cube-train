@@ -1,96 +1,158 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import "./testgame.css";
 
 const TestGame = () => {
-  const [cubePosition, setCubePosition] = useState('top'); // Позиция кубика: top или bottom
-  const [cubeAngle, setCubeAngle] = useState(0); // Угол вращения кубика вокруг круга
-  const [cubeRadius, setCubeRadius] = useState(150); // Радиус вращения кубика
-  const [obstacles, setObstacles] = useState([]); // Массив препятствий
-  const [isGameOver, setIsGameOver] = useState(false); // Состояние игры
-  const [score, setScore] = useState(0); // Счёт
-  const [isFlipping, setIsFlipping] = useState(false); // Анимация кувырка
-  const [isCircleMode, setIsCircleMode] = useState(false); // Режим круга
+  const canvasRef = useRef(null);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [score, setScore] = useState(0); // Счётчик очков
+  const gravity = 0.4; // сила притяжения дороги
+  const jumpStrength = -12; // сила прыжка кубика
+  const spikeSpeed = 2; // Скорость шипов
+  let velocityY = 1;  // начальная скорость кубика
 
-  // Обработка прыжка (изменение позиции кубика и активация кувырка)
-  const handleJump = () => {
-    if (isGameOver || isCircleMode) return; // В круговом режиме прыжок не нужен
+  let cube = {
+    x: 40,
+    y: 60,
+    width: 40,
+    height: 40,
+    color: "#1d4ed8",
+    rotationAngle: 0,
+    isRotating: false,
+    rotationStartTime: 0
+  }
+  let spikes = [];
 
-    setIsFlipping(true);
-    setCubePosition(prevPosition => (prevPosition === 'top' ? 'bottom' : 'top'));
+  // Проверка столкновения с шипами
+  const checkCollision = (cubeX, spike) => {
+    const spikeTop = spike.y;
+    const spikeBottom = spike.y + 30;
+    const spikeLeft = spike.x - 10;
+    const spikeRight = spike.x + 10;
+    const cubeBottom = cube.y + 30;
+    const cubeRight = cubeX + 30;
 
-    setTimeout(() => setIsFlipping(false), 300); // Анимация кувырка 0.3 секунды
+    return (
+        cubeBottom >= spikeTop &&
+        cube.y <= spikeBottom &&
+        cubeRight >= spikeLeft &&
+        cubeX <= spikeRight
+    );
   };
 
-  // Добавляем обработчик клика для всей области экрана
+  // Основной эффект для обновления игры
   useEffect(() => {
-    const handleScreenClick = () => handleJump();
-    window.addEventListener('click', handleScreenClick);
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
 
-    return () => {
-      window.removeEventListener('click', handleScreenClick);
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+
+    let roadHeight = canvas.height / 2;
+    const minSpikeSpacing = 180; // Минимальное расстояние между шипами
+    console.log(roadHeight)
+
+
+    // Обработчик прыжка
+    const handleJump = () => {
+      // Если игра не завершена и кубик на земле, то выполняем прыжок
+      if (!isGameOver && cube.y >= roadHeight - 20) {
+        velocityY = jumpStrength; // Задаем начальную скорость прыжка
+      }
     };
-  }, [isGameOver, isCircleMode]);
 
-  // Логика трансформации в круг при достижении 1000 очков
-  useEffect(() => {
-    if (score >= 1000 && !isCircleMode) {
-      setIsCircleMode(true); // Переход в круговой режим
-    }
-  }, [score]);
 
-  // Вращение кубика вокруг круга в круговом режиме
-  useEffect(() => {
-    if (!isCircleMode) return;
+    const update = () => {
+      if (isGameOver) return;
 
-    const cubeRotationInterval = setInterval(() => {
-      setCubeAngle(prevAngle => (prevAngle + 3) % 360); // Вращение кубика по кругу
-    }, 30); // Скорость вращения
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    return () => clearInterval(cubeRotationInterval);
-  }, [isCircleMode]);
+      // Обновляем счетчик очков
+      setScore(prevScore => prevScore + 1 / 120);
+      // setTotalScore(prevTotalScore => prevTotalScore + 0.008333333)
 
-  // Обновление позиции препятствий
-  useEffect(() => {
-    if (isGameOver) return;
+      // Отрисовка дороги
+      ctx.beginPath();
+      ctx.moveTo(0, roadHeight);
+      ctx.lineTo(canvas.width, roadHeight);
+      ctx.strokeStyle = "#555";
+      ctx.lineWidth = 6;
+      ctx.stroke();
 
-    const obstacleInterval = setInterval(() => {
-      setObstacles(prevObstacles => {
-        const newObstacles = prevObstacles.map(obstacle => ({
-          ...obstacle,
-          position: obstacle.position - 10 // Смещаем препятствие влево
-        }));
+      // Обновление положения кубика
+      velocityY += gravity;
+      cube.y += velocityY;
 
-        // Добавляем новое препятствие
-        if (newObstacles.length === 0 || newObstacles[newObstacles.length - 1].position < window.innerWidth - 300) {
-          newObstacles.push({
-            id: Math.random(),
-            position: window.innerWidth,
-            type: Math.random() > 0.5 ? 'top' : 'bottom' // Препятствие на верхней или нижней части
-          });
-        }
+      if (cube.y > roadHeight + 25) {
+        cube.y = roadHeight + 25;
+        velocityY = 0;
+      }
 
-        // Проверка на столкновение
-        const collision = newObstacles.some(
-            obstacle => obstacle.position < 60 && obstacle.position > 0 && obstacle.type === cubePosition
-        );
+      // Отрисовка кубика
+      ctx.fillStyle = cube.color;
+      ctx.fillRect(cube.x, cube.y - 20, 40, 40);
 
-        if (collision) {
+
+      // Движение шипов влево
+      spikes = spikes.map(spike => ({...spike, x: spike.x - spikeSpeed}));
+
+      // Проверка столкновения с шипами
+      for (let spike of spikes) {
+        if (checkCollision(cube.x, spike)) {
           setIsGameOver(true);
-          clearInterval(obstacleInterval);
-        } else {
-          setScore(prevScore => prevScore + 1);
+          return;
         }
+      }
 
-        return newObstacles.filter(obstacle => obstacle.position > 0); // Удаляем препятствия, которые вышли за экран
+      // Отрисовка шипов (привязаны к дороге)
+      ctx.fillStyle = "red";
+      spikes.forEach(spike => {
+        ctx.beginPath();
+        ctx.moveTo(spike.x, spike.y);
+        ctx.lineTo(spike.x + 10, spike.y + 30);
+        ctx.lineTo(spike.x - 10, spike.y + 30);
+        ctx.closePath();
+        ctx.fill();
       });
-    }, 100); // Частота обновления
 
-    return () => clearInterval(obstacleInterval);
-  }, [cubePosition, isGameOver]);
+      // Перезапуск шипов (если они вышли за пределы экрана)
+      spikes = spikes.filter(spike => spike.x > -20);
+      if (spikes.length < 7) {
+        const lastSpikeX = spikes[spikes.length - 1]?.x || 0;
+        const maxAttempts = 10; // Ограничение на количество попыток
+        let newSpikeX;
+        let attempts = 0;
 
-  // Рендеринг
+        // Пытаемся создать новый шип на безопасном расстоянии от последнего
+        do {
+          newSpikeX = canvas.width + Math.random() * 100;
+          attempts++;
+        } while (newSpikeX - lastSpikeX < minSpikeSpacing && attempts < maxAttempts);
+
+        // Добавляем новый шип, если удалось найти корректное положение
+        if (attempts < maxAttempts) {
+          spikes.push({x: newSpikeX, y: roadHeight - 30});
+        }
+      }
+
+      requestAnimationFrame(update);
+    };
+
+    update();
+
+    // Добавляем обработчик клика по canvas для прыжка
+    canvas.addEventListener('click', handleJump);
+
+    // Удаляем обработчик при размонтировании
+    return () => {
+      canvas.removeEventListener('click', handleJump);
+    };
+  }, [isGameOver]);
+
+
   return (
-      <div className="game-container">
+      <div>
+        <canvas ref={canvasRef}/>
+        <p id={'score'}>Score: {Math.trunc(score)}</p>
       </div>
   );
 };
